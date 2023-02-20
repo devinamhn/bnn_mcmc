@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from layers import Linear_HMC
 dropout_rate1= 0.0
 dropout_rate2= 0.0
 dropout_rate3= 0.0
@@ -26,7 +26,7 @@ class MLP(nn.Module):
     def forward (self, x):
 
         x = x.view(-1, self.imsize*self.imsize)
-        
+     
         x = self.fc1(x)
         x = F.relu(x)
         
@@ -37,6 +37,108 @@ class MLP(nn.Module):
 
         #output = F.log_softmax(x, dim=1)
         return x
+    
+class MLPhmc(nn.Module):
+    
+    def __init__(self, input_size, hidden_size, output_size, prior_var, prior_type):
+        super().__init__()
+        
+        self.fc1 = Linear_HMC(input_size*input_size, hidden_size, prior_var, prior_type)
+        self.fc2 = Linear_HMC(hidden_size, hidden_size, prior_var, prior_type)
+        self.out = Linear_HMC(hidden_size, output_size, prior_var, prior_type)
+        self.imsize = input_size
+        self.out_dim = output_size
+        # # weight initialisation:
+        # # following: https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
+        # for m in self.modules():
+        #     if isinstance(m, nn.Linear):
+        #         nn.init.normal_(m.weight, 0, 0.01)
+        #         nn.init.constant_(m.bias, 0)
+
+    def forward (self, x):
+
+        x = x.view(-1, self.imsize*self.imsize)
+     
+        x = self.fc1(x)
+        x = F.relu(x)
+        
+        x = self.fc2(x)
+        x = F.relu(x)      
+        
+        x = self.out(x)
+
+        #output = F.log_softmax(x, dim=1)
+        return x
+    
+    def log_prior(self):
+        return self.fc1.log_prior + self.fc2.log_prior + self.out.log_prior
+    
+    def log_like(self, outputs, target):
+        return F.cross_entropy(outputs, target, reduction='sum')
+    
+    # def log_post(self, log_prior, log_post):
+    #     return self.fc1.log_pos
+    
+    def log_prob_func(self, input, target, samples = 1):
+
+        #dont need multiple samples here right?
+        
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        
+        outputs = torch.zeros(samples, target.shape[0], self.out_dim).to(self.device)
+        
+        log_priors = torch.zeros(samples).to(self.device)
+        #log_posts = torch.zeros(samples).to(self.device)
+        log_likes = torch.zeros(samples).to(self.device)
+
+        for i in range(samples):
+            outputs[i] = self(input)
+
+            log_priors[i] = self.log_prior()
+            #log_posts[i] = self.log_post()
+
+            log_likes[i] = self.log_like(outputs[i,:,:], target)
+
+        # the mean of a sum is the sum of the means:
+        log_prior = log_priors.mean()
+        #log_post = log_posts.mean()
+        log_like = log_likes.mean()
+
+        log_prob  = log_like + log_prior/2.0 #num_batches = 2 for now
+
+        return log_prob
+    
+    def eval(self, input, target, samples = 1):
+
+        #dont need multiple samples here right?
+        
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        
+        outputs = torch.zeros(samples, target.shape[0], self.out_dim).to(self.device)
+        
+        log_priors = torch.zeros(samples).to(self.device)
+        #log_posts = torch.zeros(samples).to(self.device)
+        log_likes = torch.zeros(samples).to(self.device)
+
+        for i in range(samples):
+            outputs[i] = self(input)
+
+            log_priors[i] = self.log_prior()
+            #log_posts[i] = self.log_post()
+
+            log_likes[i] = self.log_like(outputs[i,:,:], target)
+
+        # the mean of a sum is the sum of the means:
+        log_prior = log_priors.mean()
+        #log_post = log_posts.mean()
+        log_like = log_likes.mean()
+
+        log_prob  = log_like + log_prior/2.0 #num_batches = 2 for now
+
+        return outputs
+    
+
+
 
 class MLPdropout(nn.Module):
     
