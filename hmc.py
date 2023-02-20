@@ -1,167 +1,160 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import Normal
+from utils import *
 
-#this can be defined in the model file as before
-def log_like(outputs,target):
-    #log P(D|w)
-    return F.cross_entropy(outputs, target, reduction='sum')
+def log_prob_fn(model, train_loader, device):
+    log_prob = torch.tensor([0])
+    for batch, (x_train, y_train) in enumerate(train_loader):
+        
+        x_train, y_train = x_train.to(device), y_train.to(device)
+        #outputs = model.forward(x_train)
+        log_prob = log_prob + model.log_prob_func(x_train, y_train)
+        #print(batch)
 
-def log_prior(params, var):
-    mean = 
-    stddev = 
-    torch.distributions.Normal(mean, stddev).log_prob(params).sum()
+        if(batch == 1):
+            break
+    return log_prob
 
-    lnP = torch.distributions.Normal(0,var).log_prob(x)
+def sample_momentum(model):
+    params = flatten(model)
+    mvn = torch.distributions.MultivariateNormal(torch.zeros_like(params), torch.eye(len(params)))
+    momentum = mvn.sample()
+    return momentum
 
-# def log_prob_func(lo ):
+def hamiltonian(logprob, momentum):
 
-#     log_likelihood = self.log_like(outputs[i,:,:], target)
+    pe = - logprob
+    ke = 0.5 * torch.dot(momentum, momentum)
+    hamiltonian = ke + pe
+    #print("pe", pe,"ke", ke,"ham", hamiltonian)
 
-#     #priors from VI code
-#     #log_prior = Gaussian()
+    return hamiltonian
 
-#     #log_prob = log_likelihood + log_prior
+def get_gradients(log_prob, model):
+ 
+    #call params.backwards() to populate params.grad()
 
-#     return
+    # del H / del theta : differentiate log_prob w.r.t. params  
+    grad = torch.autograd.grad(log_prob, model.parameters(), allow_unused=True, retain_graph=True)#, grad_outputs=None,,retain_graph=None,
+                                 #create_graph=False)
+    # print("GRADIENT")
+    # print(torch.cat([grad[i].flatten() for i in range(6)]))
+    grad_flattened = torch.cat([grad[i].flatten() for i in range(6)])
+
+    # del H / del m : differentiate KE w.r.t. momentum 
 
 
-############################################################################
-# See where make_lenet5_fun is used
-# last layer is just nn.Linear(num_classes), no softmax so they must be using crossentropy loss
-# returning logits in resnet
-
-#user defined params
-
-step_size = 1e-1 
-#trajectory length = length of HMC simulation for each iteration
-alpha_prior = 1 #for now to match the code
-trajectory_len = torch.pi * alpha_prior/ 2 #alpha_prior = std of prior distribution
-
-N_leapfrog = int(trajectory_len // step_size + 1)
-n_samples = 100
-
+    return grad_flattened #params
 class HMCsampler():
 
-    def __init__(self, params, n_samples, step_size, traj_len, ):
+    def __init__(self, n_samples, step_size, N_leapfrog):
 
-        self.params = params 
+        
         self.n_samples = n_samples
-        self.N_leapfrog = int(traj_len // step_size + 1)
+        self.step_size = step_size
+        self.N_leapfrog = N_leapfrog #int(traj_len // step_size + 1)
+        #self.device = device
 
 
+    # def sample_momentum(params): #input flat vector of model params
 
-    def sample_momentum(params): #input flat vector of model params
-        '''
-        for each param value, a momentum variable is defined
-        momentum is sampled from a multivariate normal distribution 
-        '''
-        mvn = torch.distributions.MultivariateNormal(torch.zeros_like(params), torch.eye(len(params)))
-        return mvn.sample()
 
-    def get_gradients(self, log_prob, params):
+    # #log_prob_func - where is this defined?? - was mixing up two code repos
+    # def calculate_hamiltonian(self, params, momentum, log_prob_func):
+
+    # def get_gradients(self, log_prob, params):
  
-        #call params.backwards() to populate params.grad()
-
-        # del H / del theta : differentiate log_prob w.r.t. params  
-        params.grad = torch.autograd.grad(log_prob, params)#[0]
-
-        # del H / del m : differentiate KE w.r.t. momentum 
-
-
-        return params
 
     #update position and momentum variables
-    def updates(self, init_values):
+    
+    #should momentum be sampled inside the udpate function?
+    def updates(self, params, momentum, log_prob, model): #DOES NOT REQUIRE params
 
-        params, momentum = init_values
-        grad = self.get_gradients(params).grad
-        #lambda functions : momentum and grad are values to the fn
+        #step_size = 1e-1
+        grad_flattened = get_gradients(log_prob, model)
+        params = flatten(model)
+        # print("MOMEMTUM BEFORE UPDATE")
+        # print(momentum)
+        momentum = momentum + 0.5 * self.step_size * grad_flattened
+    
+        # print("PARAMS BEFORE UPDATE")
+        # print(params)
+        params = params + self.step_size * momentum
+        # print("PARAMS")
+        # print(params)
+        # print("MOMENTUM")
+        momentum = momentum + 0.5*grad_flattened
+        # print(momentum)
+        # print("END UPDATE")
 
-        #update momentum by half a step size
-        momentum = momentum + 0.5 * step_size * grad
-        #momentum = jax.tree_map(lambda m, g: m + 0.5 * step_size * g, momentum, grad)
-        
+        #not a pure function, modifying the args
+        return params, momentum 
 
-        #update position aka param values by a full step size using the updated momentum
-        
-        params = params + step_size * momentum
-        #params = jax.tree_map(lambda s, m: s + step_size*m, params, momentum)
 
-        #calculate posterior log_prob, gradient of posterior log_prob, loglikelihood, net_state
-
-        #update momentum again by half a step 
-        
-        momentum = momentum + 0.5*grad
-        #momentum = jax.tree_map(lambda m, g: m + 0.5* step_size*g, momentum, grad)
-
-        #return updated params and momentum values
-        #return params, net_state, momentum, grad, log_prob, log_likelihood
-
-    #repeat updates step for number of leapfrog steps
-
-    def leapfrog(self, init_values, N_leapfrog):
+    def leapfrog(self, params, mom, log_prob, N_leapfrog, model):
         #should return the whole trajectory of values or just the final values?
+        #the whole trajectory of values or just the final values?
 
         for i in range(N_leapfrog):
-            
-            proposed_values = self.updates(init_values)
+            proposed_values = self.updates(params, mom, log_prob, model)
+            mom =  sample_momentum(model)    
 
         return proposed_values
 
+    def metropolis(self, ham_old, ham_new):
 
-    #log_prob_func - where is this defined?? - was mixing up two code repos
-    def calculate_hamiltonian(self, params, momentum, log_prob_func ):
-        #calculate potential and kinetic energies
+        #print(ham_old, ham_new, ham_new - ham_old)
 
-        log_prob = log_prob_func(params)
+        #print(ham_new/ham_old)
 
-        potential_energy = -log_prob #is a normalizing constant reqd
-
-        #assuming mass = 1
-        kinetic_energy = 0.5 * torch.dot(momentum, momentum)
-
-        hamiltonian = kinetic_energy + potential_energy
-
-        return hamiltonian
-
-
-
-
-    def metropolis_correction(self, H_old, H_new):
-
-        #calculate log acceptance ratio using prev and new values of hamiltonian
-
-        #ratio = H_new/H_old 
-
-        accept_prob = torch.min(1., torch.exp(H_new - H_old))
-
-        #sample from a random distribution
-        torch.rand(1)
-
+        rho = min(0., -ham_new +  ham_old)
+        print(rho)
         
-        return 
+        if(rho>= torch.log(torch.rand(1))):
+            print("Accept")
+            return 0
 
-    def sample(self, num_samples, params):
+            #see line 1000 in samplers.py
+        else:
+            print("Reject")
+            return 1
 
-        for i in range(num_samples):
+    def sample(self, model, train_loader, device):
+        
+        log_prob = log_prob_fn(model, train_loader, device)
 
-            momentum = self.sample_momentum(params)
-            hamiltonian = self.calculate_hamiltonian(params, momentum, log_prob_func)
+        mom = sample_momentum(model)
+        params = flatten(model)
+        ham_old = hamiltonian(log_prob, mom)
 
-            traj_params, traj_momentum = self.leapfrog(init_values, N_leapfrog)
+        N_leapfrog=20
+        count = 0
+        for i in range(self.n_samples):
+            #for now - 
+            #leapfrog only returns the final value not the whole trajectory of params and momentum
+            
+            #mom =  momentum(model)
+            params_new, mom_new = self.leapfrog(params, mom, log_prob, N_leapfrog, model)
 
-            #update with new values
-            params = traj_params[-1].requires_grad_()
-            momentum = traj_momentum[-1]
+            log_prob = log_prob_fn(model, train_loader, device)
+            ham_new = hamiltonian(log_prob, mom_new)
 
-            new_hamiltonian = self.calculate_hamiltonian(params, momentum, log_prob_func)
+            accept = self.metropolis(ham_old, ham_new)
+            if (accept == 0):
+                params = params_new
+                mom = mom_new
+                count += 1
+            else:
+                params = params
+                mom = mom
+                
+            print(params)
+            with torch.no_grad(): #is it correct to us this here?
+                params.copy_(params)
 
-            ratio = self.metropolis_correction(hamiltonian, new_hamiltonian)
-
-         
-
-
+        print("Acceptance ratio = ", count/self.n_samples)
+        return params
 
 #metrics
 
