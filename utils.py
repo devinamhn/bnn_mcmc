@@ -1,6 +1,7 @@
 import argparse
 import configparser as ConfigParser 
 import ast
+import torch
 
 def parse_args():
     """
@@ -38,3 +39,47 @@ def parse_config(filename):
                 raise ValueError(err)
 
     return taskvals, config
+
+
+def flatten(model):
+    return torch.cat([p.flatten() for p in model.parameters()])#.requires_grad_()
+
+
+def unflatten(model, flattened_params):
+    if flattened_params.dim() != 1:
+        raise ValueError('Expecting a 1d flattened_params')
+    params_list = []
+    i = 0
+    for val in list(model.parameters()):
+        length = val.nelement()
+        param = flattened_params[i:i+length].view_as(val)
+        params_list.append(param)
+        i += length
+
+    return params_list
+
+def fuse_parameters(model):
+    """Move model parameters to a contiguous tensor, and return that tensor."""
+    n = sum(p.numel() for p in model.parameters())
+    params = torch.zeros(n)
+    i = 0
+    for p in model.parameters():
+        params_slice = params[i:i + p.numel()]
+        params_slice.copy_(p.flatten())
+        p.data = params_slice.view(p.shape)
+        i += p.numel()
+    return params
+
+def fuse_parameters_and_gradients(model):
+    """Move model parameters and gradients to a contiguous tensor, and return that tensor."""
+    n = sum(p.numel() for p in model.parameters())
+    params = torch.zeros(n, requires_grad=True)
+    params.grad = torch.zeros(n)
+    i = 0
+    for p in model.parameters():
+        params_slice = params[i:i + p.numel()]
+        with torch.no_grad(): params_slice.copy_(p.flatten())
+        p.data = params_slice.view(p.shape)
+        p.grad = params.grad[i:i + p.numel()].view(p.shape)
+        i += p.numel()
+    return params
