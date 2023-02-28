@@ -27,19 +27,26 @@ class MNISTDataModule(pl.LightningDataModule):
         self.mnist_test = MNIST(DATASETS_PATH, train = False, download = True, transform = transform)
         self.mnist_train, self.mnist_val = random_split(dataset, [50000, 10000])
         self.batch_size = batch_size
+        self.batch_size_train = 50000
+        self.batch_size_val = 10000
+        self.batch_size_test = 10000
 
     def train_dataloader(self):
-        return DataLoader(self.mnist_train, batch_size = self.batch_size)    
+        return DataLoader(self.mnist_train, batch_size = self.batch_size_train)    
+        #return DataLoader(self.mnist_train, num_workers = 4,prefetch_factor = 2, pin_memory = True, batch_size = self.batch_size_train)    
 
     def val_dataloader(self):
-        return DataLoader(self.mnist_val, batch_size = self.batch_size)    
+        return DataLoader(self.mnist_val, batch_size = self.batch_size_val)    
+        #return DataLoader(self.mnist_val, num_workers = 4, prefetch_factor = 2, pin_memory = True, batch_size = self.batch_size_val)    
 
     def test_dataloader(self):
-        return DataLoader(self.mnist_test, batch_size = self.batch_size)
+        return DataLoader(self.mnist_test, batch_size = self.batch_size_test)
+        #return DataLoader(self.mnist_val, num_workers = 4, prefetch_factor = 2, pin_memory = True, batch_size = self.batch_size_test)    
 
     #why is this function required
     def predict_dataloader(self):
-        return DataLoader(self.mnist_test, batch_size = self.batch_size)
+        return DataLoader(self.mnist_test, batch_size = self.batch_size_test)
+        #return DataLoader(self.mnist_test, num_workers = 4, prefetch_factor = 2, pin_memory = True, batch_size = self.batch_size_test)
 
 
 class MiraBestDataModule(pl.LightningDataModule):
