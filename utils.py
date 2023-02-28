@@ -41,45 +41,30 @@ def parse_config(filename):
     return taskvals, config
 
 
+
 def flatten(model):
-    return torch.cat([p.flatten() for p in model.parameters()])#.requires_grad_()
+    return torch.nn.utils.parameters_to_vector(model.parameters())
+
+def unflatten(params, model):
+    
+    torch.nn.utils.vector_to_parameters(params, model.parameters()) 
+    return None
+
+# def flatten(model):
+#     return torch.cat([p.flatten() for p in model.parameters()]).requires_grad_()
 
 
-def unflatten(model, flattened_params):
-    if flattened_params.dim() != 1:
-        raise ValueError('Expecting a 1d flattened_params')
-    params_list = []
-    i = 0
-    for val in list(model.parameters()):
-        length = val.nelement()
-        param = flattened_params[i:i+length].view_as(val)
-        params_list.append(param)
-        i += length
+# def unflatten(model, flattened_params):
+#     if flattened_params.dim() != 1:
+#         raise ValueError('Expecting a 1d flattened_params')
+#     params_list = []
+#     i = 0
+#     for val in list(model.parameters()):
+#         length = val.nelement()
+#         param = flattened_params[i:i+length].view_as(val)
+#         params_list.append(param)
+#         i += length
+    
+#     #params_tensor = torch.tensor(params_list, dtype=torch.float32)
 
-    return params_list
-
-def fuse_parameters(model):
-    """Move model parameters to a contiguous tensor, and return that tensor."""
-    n = sum(p.numel() for p in model.parameters())
-    params = torch.zeros(n)
-    i = 0
-    for p in model.parameters():
-        params_slice = params[i:i + p.numel()]
-        params_slice.copy_(p.flatten())
-        p.data = params_slice.view(p.shape)
-        i += p.numel()
-    return params
-
-def fuse_parameters_and_gradients(model):
-    """Move model parameters and gradients to a contiguous tensor, and return that tensor."""
-    n = sum(p.numel() for p in model.parameters())
-    params = torch.zeros(n, requires_grad=True)
-    params.grad = torch.zeros(n)
-    i = 0
-    for p in model.parameters():
-        params_slice = params[i:i + p.numel()]
-        with torch.no_grad(): params_slice.copy_(p.flatten())
-        p.data = params_slice.view(p.shape)
-        p.grad = params.grad[i:i + p.numel()].view(p.shape)
-        i += p.numel()
-    return params
+#     return params_list#params_tensor
