@@ -46,20 +46,18 @@ class Linear_HMC(nn.Module):
     def forward(self, input):
         
         #record prior
-        w_log_prior = self.prior.log_prob(self.w)
-        b_log_prior = self.prior.log_prob(self.b)
+        w_log_prior = self.prior.log_prob(self.w).to(self.device)
+        b_log_prior = self.prior.log_prob(self.b).to(self.device)
         self.log_prior = torch.sum(w_log_prior) + torch.sum(b_log_prior) 
         
        
         #record posterior 
         #update with samples from the mcmc
         
-        #why is this even needed then????? probably cna do without it because no distributions are being sampled
+        #probably can do without it because no distributions are being sampled
         self.w_post = self.w
         self.b_post = self.b
 
-        #could use log_prob cause it was calculating it for a 
-        #sample from the Normal dist.
 
         #self.log_post = self.log_prob(self.w).sum() + self.log_prob(self.b).sum()
         
