@@ -5,7 +5,8 @@ class GaussianPrior():
 
     def __init__(self,var):
 
-        self.var = torch.Tensor(var)
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.var = torch.Tensor(var).to(self.device)
 
     def log_prob(self,x):
 
