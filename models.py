@@ -79,7 +79,7 @@ class MLPhmc(nn.Module):
     # def log_post(self, log_prior, log_post):
     #     return self.fc1.log_pos
     
-    def log_prob_func(self, input, target, samples = 1):
+    def log_prob_func(self, input, target, num_batches, samples = 1):
 
         #dont need multiple samples here right?
         
@@ -103,10 +103,11 @@ class MLPhmc(nn.Module):
         log_prior = log_priors.mean()
         #log_post = log_posts.mean()
         log_like = log_likes.mean()
-
-        log_prob  = log_like + log_prior/2.0 #num_batches = 2 for now
-
-        return log_prob
+        
+        #print(log_like)
+        log_prob  = -log_like + log_prior/num_batches #= 2 for now
+        #print(log_prob)
+        return log_prob, log_like
     
     def eval(self, input, target, samples = 1):
 
@@ -133,7 +134,7 @@ class MLPhmc(nn.Module):
         #log_post = log_posts.mean()
         log_like = log_likes.mean()
 
-        log_prob  = log_like + log_prior/2.0 #num_batches = 2 for now
+        log_prob  = log_like + log_prior/1.0 #num_batches = 2 for now
 
         return outputs
     
