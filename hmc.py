@@ -14,6 +14,10 @@ def log_prob_fn(model, train_loader, num_batches,device):
         log_prob_out, log_like_out = model.log_prob_func(x_train, y_train, num_batches)
         log_prob = log_prob + log_prob_out
         log_like = log_like + log_like_out
+
+    if torch.cuda.is_available():
+        del x_train, y_train
+        torch.cuda.empty_cache()
     
     return log_prob, log_like
 
@@ -47,6 +51,8 @@ def get_gradients(log_prob, model):
 
     grad_flattened = torch.cat([grad[i].flatten() for i in range(6)])
     # del H / del m : differentiate KE w.r.t. momentum 
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
 
     return grad_flattened #params
 
