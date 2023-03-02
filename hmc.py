@@ -1,7 +1,7 @@
 import torch
 import torch.nn.functional as F
 from torch.distributions import Normal
-from utils import *
+import utils
 
 def log_prob_fn(model, train_loader, num_batches,device):
 
@@ -23,7 +23,7 @@ def log_prob_fn(model, train_loader, num_batches,device):
 
 def sample_momentum(model):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    params = flatten(model)
+    params = utils.flatten(model)
     mvn = torch.distributions.MultivariateNormal(torch.zeros_like(params).to(device), torch.eye(len(params)).to(device))
     momentum = mvn.sample()
     return momentum
@@ -103,7 +103,7 @@ class HMCsampler():
             #update params by a full step
             params = params + self.step_size * momentum
             #calculate log_prob again, update model params before doing that
-            unflatten(params, model)
+            utils.unflatten(params, model)
             log_prob = log_prob_fn(model, train_loader, num_batches, self.device)
             #get gradients after params have been updated
             grad_flattened = get_gradients(log_prob, model)
@@ -131,7 +131,7 @@ class HMCsampler():
     def sample(self, model, train_loader, num_batches, device): 
 
         #params_init
-        params = flatten(model).clone().requires_grad_()
+        params = utils.flatten(model).clone().requires_grad_()
 
         N_leapfrog = self.N_leapfrog
         count = 0
@@ -155,7 +155,7 @@ class HMCsampler():
             #final log_prob/log_likelihood should be recorded after the proposed 
             #values have been accepted or rejected.
     
-            unflatten(params_new, model)
+            utils.unflatten(params_new, model)
 
             log_prob_new, log_like_new = log_prob_fn(model, train_loader, num_batches, device)
 
@@ -176,7 +176,7 @@ class HMCsampler():
                 log_like_ret[i] = log_like_
                 log_prob_ret[i] = log_prob
 
-            unflatten(params, model)
+            utils.unflatten(params, model)
 
             #add sample values to the chain
             if(i>=self.burnin):
