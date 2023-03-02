@@ -105,7 +105,8 @@ class HMCsampler():
             params = params + self.step_size * momentum
             #calculate log_prob again, update model params before doing that
             utils.unflatten(params, model)
-            log_prob = log_prob_fn(model, train_loader, num_batches, self.device)
+            #BUGg? log_prob_fn returns both log_prob and log_likelihood??
+            log_prob, log_like = log_prob_fn(model, train_loader, num_batches, self.device)
             #get gradients after params have been updated
             grad_flattened = get_gradients(log_prob, model)
             #update momentum by a full step
