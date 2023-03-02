@@ -24,7 +24,8 @@ def log_prob_fn(model, train_loader, num_batches,device):
 def sample_momentum(model):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     params = utils.flatten(model)
-    mvn = torch.distributions.MultivariateNormal(torch.zeros_like(params).to(device), torch.eye(len(params)).to(device))
+    mvn = torch.distributions.Normal(torch.zeros_like(params), torch.ones_like(params))
+    #mvn = torch.distributions.MultivariateNormal(torch.zeros_like(params).to(device), torch.eye(len(params)).to(device))
     momentum = mvn.sample()
     return momentum
 
