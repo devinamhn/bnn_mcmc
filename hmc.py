@@ -66,7 +66,7 @@ def get_predictions(model, test_loader, device):
             pred = model.eval(x_test, y_test)
 
             #print(y_test)
-            acc = (pred.mean(dim=0).argmax(dim=-1) == y_test).to(torch.float32).mean()
+            acc = (pred.argmax(dim=-1) == y_test).to(torch.float32).mean()
 
             accs.append(acc.item())
             if(i==0):
