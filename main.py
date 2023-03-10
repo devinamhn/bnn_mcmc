@@ -23,11 +23,10 @@ device = torch.device("cuda" if use_cuda else "cpu")
 kwargs = {'num_workers': 1, 'pin_memory': True} if use_cuda else {}
 print("Device: ",device)
 
-
 # config_dict, config = parse_config('config_hmc.txt')
 # print(config_dict, config)
 
-datamodule = MNISTDataModule(128)
+datamodule = MNISTDataModule(128, hmc=True)
 batch = 1
 num_batches= 1
 train_loader = datamodule.train_dataloader()
@@ -38,8 +37,8 @@ test_loader = datamodule.test_dataloader()
 # test_loader = datamodule.test_loader()
 
 #model = MLP(28, 2, 10).to(device)
-model = MLPhmc(28, 20, 10, [1], 'Gaussian').to(device)
-print(summary(model, input_size=(1, 28, 28)))
+model = MLPhmc(28, 200, 10, [0.1], 'Gaussian').to(device)
+#print(summary(model, input_size=(1, 28, 28)))
 
 n_samples = 300
 step_size = 2e-4 #1e-3 #1e-1
@@ -48,7 +47,7 @@ burnin = 100
 
 sampler = HMCsampler(n_samples,step_size, N_leapfrog, burnin, device)
 
-samples, log_like, log_prob = sampler.sample(model, train_loader, num_batches, device)
+samples, log_like, log_prob = sampler.sample(model, train_loader, num_batches, device, validation_loader)
 
 accs = get_predictions(model, test_loader, device)
 #print(samples)
