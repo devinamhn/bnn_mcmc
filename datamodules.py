@@ -20,17 +20,22 @@ import mirabest
 
 class MNISTDataModule(pl.LightningDataModule):
     
-    def __init__(self, batch_size, DATASETS_PATH = Path('/MNISTdataset')):
+    def __init__(self, batch_size, hmc, DATASETS_PATH = Path('./MNISTdataset')):
         super().__init__()
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
         dataset = MNIST(DATASETS_PATH, train = True, download = True, transform = transform)
         self.mnist_test = MNIST(DATASETS_PATH, train = False, download = True, transform = transform)
         self.mnist_train, self.mnist_val = random_split(dataset, [50000, 10000])
         self.batch_size = batch_size
-        self.batch_size_train = 50000
-        self.batch_size_val = 10000
-        self.batch_size_test = 10000
-
+        
+        if(hmc == True):
+            self.batch_size_train = 50000
+            self.batch_size_val = 10000
+            self.batch_size_test = 10000
+        else: 
+            self.batch_size_train = self.batch_size
+            self.batch_size_val = self.batch_size
+            self.batch_size_test = self.batch_size
     def train_dataloader(self):
         return DataLoader(self.mnist_train, batch_size = self.batch_size_train)    
         #return DataLoader(self.mnist_train, num_workers = 4,prefetch_factor = 2, pin_memory = True, batch_size = self.batch_size_train)    
