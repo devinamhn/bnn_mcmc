@@ -2,6 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Normal
 import utils
+import subprocess 
 
 def log_prob_fn(model, train_loader, num_batches,device):
 
@@ -105,7 +106,6 @@ class HMCsampler():
             params = params + self.step_size * momentum
             #calculate log_prob again, update model params before doing that
             utils.unflatten(params, model)
-            #BUGg? log_prob_fn returns both log_prob and log_likelihood??
             log_prob, log_like = log_prob_fn(model, train_loader, num_batches, self.device)
             #get gradients after params have been updated
             grad_flattened = get_gradients(log_prob, model)
@@ -130,7 +130,7 @@ class HMCsampler():
             #print("Reject")
             return 1
 
-    def sample(self, model, train_loader, num_batches, device): 
+    def sample(self, model, train_loader, num_batches, device, val_loader): 
 
         #params_init
         params = utils.flatten(model).clone().requires_grad_()
@@ -186,6 +186,13 @@ class HMCsampler():
             else:
                 pass
 
+            print("memory reserved:",torch.cuda.memory_reserved())
+            print("memory allocated", torch.cuda.memory_allocated())
+            #bashCommand = "nvidia-smi"
+            #process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE) 
+            #output, error = process.communicate()
+            acc = get_predictions(model, val_loader, device)
+            print("val_acc", acc)
         print("Acceptance ratio = ", count/self.n_samples)
         return samples, log_like_ret, log_prob_ret
 
